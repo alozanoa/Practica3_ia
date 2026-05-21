@@ -95,8 +95,74 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
     nodosVisitados++;
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
+    auto sucesores = tablero.getSucesores();
 
-    return Resultado::EMPATE;
+    if(sucesores.empty()) {
+        if(tablero.comprobarGanador() == id) {
+            return Resultado::VICTORIA;
+        }
+        else if(tablero.comprobarGanador() == 0) {
+            return Resultado::EMPATE;
+        }
+        else {
+            return Resultado::DERROTA;
+        }
+    }
+
+    Resultado mejor ;
+    if(tablero.getJugadorTurno() == id) {
+        mejor = Resultado::DERROTA; // El peor resultado posible para MAX
+    }
+    else {
+        mejor = Resultado::VICTORIA; // El peor resultado posible para MIN
+    }
+    std::pair<int,int> mejorMov = {-1,-1};
+    std::pair<int,int> vacio;
+
+    while (!sucesores.empty()) {
+
+        auto hijo = sucesores.back();
+        sucesores.pop_back();
+
+        Resultado resactual = Status(hijo, vacio);
+        auto movimiento = SacarMovimiento(tablero, hijo);
+
+        if (tablero.getJugadorTurno() == id) {
+
+            if (resactual == Resultado::VICTORIA) {
+                Mov = movimiento;
+                return Resultado::VICTORIA;
+            }
+
+            if (resactual == Resultado::EMPATE && mejor != Resultado::VICTORIA) {
+                mejor = Resultado::EMPATE;
+                mejorMov = movimiento;
+            }
+
+            if (resactual == Resultado::DERROTA && mejor == Resultado::DERROTA) {
+                mejorMov = movimiento;
+            }
+
+        } else {
+
+            if (resactual == Resultado::DERROTA) {
+                Mov = movimiento;
+                return Resultado::DERROTA;
+            }
+
+            if (resactual == Resultado::EMPATE && mejor != Resultado::DERROTA) {
+                mejor = Resultado::EMPATE;
+                mejorMov = movimiento;
+            }
+
+            if (resactual == Resultado::VICTORIA && mejor == Resultado::VICTORIA) {
+                mejorMov = movimiento;
+            }
+        }
+    }
+
+    Mov = mejorMov;
+    return mejor;
 }
 
 
@@ -120,8 +186,44 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
     }
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
+        auto sucesores = tablero.getSucesores();
 
-    return 0;
+    // corte por profundidad
+    if (profundidad == prof_Max || sucesores.empty()) {
+        return heuristica(tablero);
+    }
+
+    bool esMax = (tablero.getJugadorTurno() == id);
+
+    int mejorValor = esMax ? -100000 : 100000;
+    std::pair<int,int> mejorMov = {-1,-1};
+    std::pair<int,int> vacio;
+
+    while (!sucesores.empty()) {
+
+        auto hijo = sucesores.back();
+        sucesores.pop_back();
+
+        auto movimiento = SacarMovimiento(tablero, hijo);
+
+        int valor = minimax(hijo, profundidad + 1, prof_Max, vacio);
+
+        if (esMax) {
+            if (valor > mejorValor) {
+                mejorValor = valor;
+                mejorMov = movimiento;
+            }
+
+        } else {
+            if (valor < mejorValor) {
+                mejorValor = valor;
+                mejorMov = movimiento;
+            }
+        }
+    }
+
+    Mov = mejorMov;
+    return mejorValor;
 }
 
 
