@@ -195,7 +195,7 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
 
     bool esMax = (tablero.getJugadorTurno() == id);
 
-    int mejorValor = esMax ? -100000 : 100000;
+    double mejorValor = esMax ? -100000.0 : 100000.0;
     std::pair<int,int> mejorMov = {-1,-1};
     std::pair<int,int> vacio;
 
@@ -206,7 +206,7 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
 
         auto movimiento = SacarMovimiento(tablero, hijo);
 
-        int valor = minimax(hijo, profundidad + 1, prof_Max, vacio);
+        double valor = minimax(hijo, profundidad + 1, prof_Max, vacio);
 
         if (esMax) {
             if (valor > mejorValor) {
@@ -241,8 +241,6 @@ std::pair<int, int> AgenteEstudiante::JuegaInteligente(const Tablero& tablero) {
 }
 
 
-
-
 /**
  * @brief Implementación del algoritmo Minimax con Poda Alfa-Beta.
  * @param tablero Estado actual.
@@ -264,8 +262,48 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
     }
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
+    auto sucesores = tablero.getSucesores();
 
-    return 0;
+    // Caso base: profundidad límite o sin movimientos
+    if (profundidad == prof_Max || sucesores.empty()) {
+        return heuristica(tablero);
+    }
+
+    bool esMax = (tablero.getJugadorTurno() == id);
+
+    double mejorValor = esMax ? -100000.0 : 100000.0;
+    std::pair<int,int> mejorMov = {-1, -1};
+    std::pair<int,int> vacio;
+
+    while (!sucesores.empty()) {
+
+        auto hijo = sucesores.back();
+        sucesores.pop_back();
+
+        auto movimiento = SacarMovimiento(tablero, hijo);
+
+        double valor = alfaBeta(hijo, profundidad + 1, prof_Max, alfa, beta, vacio);
+
+        if (esMax) {
+            if (valor > mejorValor) {
+                mejorValor = valor;
+                mejorMov = movimiento;
+            }
+            alfa = std::max(alfa, mejorValor); // Actualizamos alfa
+            if (alfa >= beta) break;           // Poda Beta: MIN nunca elegiría esta rama
+
+        } else {
+            if (valor < mejorValor) {
+                mejorValor = valor;
+                mejorMov = movimiento;
+            }
+            beta = std::min(beta, mejorValor); // Actualizamos beta
+            if (alfa >= beta) break;           // Poda Alfa: MAX nunca elegiría esta rama
+        }
+    }
+
+    Mov = mejorMov;
+    return mejorValor;
 }
 
 /**
