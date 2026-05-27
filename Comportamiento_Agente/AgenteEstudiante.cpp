@@ -6,6 +6,8 @@
 #include <cmath>
 #include <functional>
 
+using namespace std;
+
 AgenteEstudiante::AgenteEstudiante(int id, int profundidadMax, double tiempoMax, int numHeuristica, ModoJuego modo) 
     : id(id), profundidadMax(profundidadMax), tiempoMaxSegundos(tiempoMax), numHeuristica(numHeuristica), modo(modo), abortarBanda(false) {
     nodosVisitados = 0;
@@ -20,6 +22,9 @@ std::pair<int, int> AgenteEstudiante::think(const Tablero& tablero) {
     nodosVisitados = 0;
     abortarBanda = false;
     inicioBusqueda = std::chrono::steady_clock::now();
+    double valor = 0;
+    Resultado res = Resultado::EMPATE;
+    string resStr;
 
     switch (modo)
     {
@@ -28,12 +33,15 @@ std::pair<int, int> AgenteEstudiante::think(const Tablero& tablero) {
         break;
     
     case ModoJuego::STATUS:
-        Status(tablero, mejor);
+        res = Status(tablero, mejor);
+        resStr = (res == Resultado::VICTORIA) ? "VICTORIA" : (res == Resultado::DERROTA)  ? "DERROTA"  : "EMPATE";
+        cout << resStr << " ";
         return mejor;
         break;    
 
     case ModoJuego::MINIMAX:
-        minimax(tablero, 0, profundidadMax, mejor);
+        valor = minimax(tablero, 0, profundidadMax, mejor);
+        cout << "Valor minimax: " << valor << "\tJugada: (" << mejor.first << ", " << mejor.second << ")\n";
         return mejor;
         break; 
 
@@ -96,12 +104,11 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
     auto sucesores = tablero.getSucesores();
-
     if(sucesores.empty()) {
-        if(tablero.comprobarGanador() == id) {
+        if(tablero.comprobarGanador() == this->id) {
             return Resultado::VICTORIA;
         }
-        else if(tablero.comprobarGanador() == 0) {
+        else if(tablero.comprobarGanador() == -1) {
             return Resultado::EMPATE;
         }
         else {
@@ -110,7 +117,7 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
     }
 
     Resultado mejor ;
-    if(tablero.getJugadorTurno() == id) {
+    if(tablero.getJugadorTurno() == this->id) {
         mejor = Resultado::DERROTA; // El peor resultado posible para MAX
     }
     else {
@@ -119,7 +126,10 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
     std::pair<int,int> mejorMov = {-1,-1};
     std::pair<int,int> vacio;
 
+
     while (!sucesores.empty()) {
+
+        cout << "Nodos visitados: " << nodosVisitados << "\tSucesores restantes: " << sucesores.size() << "\n";
 
         auto hijo = sucesores.back();
         sucesores.pop_back();
@@ -127,35 +137,31 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
         Resultado resactual = Status(hijo, vacio);
         auto movimiento = SacarMovimiento(tablero, hijo);
 
-        if (tablero.getJugadorTurno() == id) {
-
+        if (tablero.getJugadorTurno() == this->id) {
+            // MAX: actualiza siempre, sin return anticipado
             if (resactual == Resultado::VICTORIA) {
-                Mov = movimiento;
-                return Resultado::VICTORIA;
+                mejor = Resultado::VICTORIA;
+                mejorMov = movimiento;
             }
-
-            if (resactual == Resultado::EMPATE && mejor != Resultado::VICTORIA) {
+            else if (resactual == Resultado::EMPATE && mejor != Resultado::VICTORIA) {
                 mejor = Resultado::EMPATE;
                 mejorMov = movimiento;
             }
-
-            if (resactual == Resultado::DERROTA && mejor == Resultado::DERROTA) {
+            else if (resactual == Resultado::DERROTA && mejor == Resultado::DERROTA) {
                 mejorMov = movimiento;
             }
 
         } else {
-
+            // MIN: retorna inmediatamente al encontrar DERROTA
             if (resactual == Resultado::DERROTA) {
                 Mov = movimiento;
                 return Resultado::DERROTA;
             }
-
-            if (resactual == Resultado::EMPATE && mejor != Resultado::DERROTA) {
+            else if (resactual == Resultado::EMPATE && mejor != Resultado::DERROTA) {
                 mejor = Resultado::EMPATE;
                 mejorMov = movimiento;
             }
-
-            if (resactual == Resultado::VICTORIA && mejor == Resultado::VICTORIA) {
+            else if (resactual == Resultado::VICTORIA && mejor == Resultado::VICTORIA) {
                 mejorMov = movimiento;
             }
         }
@@ -186,14 +192,14 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
     }
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
-        auto sucesores = tablero.getSucesores();
+    auto sucesores = tablero.getSucesores();
 
     // corte por profundidad
     if (profundidad == prof_Max || sucesores.empty()) {
         return heuristica(tablero);
     }
 
-    bool esMax = (tablero.getJugadorTurno() == id);
+    bool esMax = (tablero.getJugadorTurno() == this->id);
 
     double mejorValor = esMax ? -100000.0 : 100000.0;
     std::pair<int,int> mejorMov = {-1,-1};
@@ -201,7 +207,7 @@ double AgenteEstudiante::minimax(const Tablero &tablero, int profundidad, int pr
 
     while (!sucesores.empty()) {
 
-        auto hijo = sucesores.back();
+        auto hijo = sucesores.back();   // ← front en vez de back
         sucesores.pop_back();
 
         auto movimiento = SacarMovimiento(tablero, hijo);
@@ -265,13 +271,18 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
     auto sucesores = tablero.getSucesores();
 
     // Caso base: profundidad límite o sin movimientos
-    if (profundidad == prof_Max || sucesores.empty()) {
+    if (sucesores.empty()) {
+        if (tablero.comprobarGanador() == id)  return  this->MasInfinito ; 
+        if (tablero.comprobarGanador() == -1)  return  0.0;
+        if (tablero.comprobarGanador() != 0)   return this->MenosInfinito ; 
+    }
+    if (profundidad == prof_Max) {
         return heuristica(tablero);
     }
 
     bool esMax = (tablero.getJugadorTurno() == id);
 
-    double mejorValor = esMax ? -100000.0 : 100000.0;
+    double mejorValor = esMax ? this->MenosInfinito : this->MasInfinito; // Inicializamos con el peor valor posible para cada caso
     std::pair<int,int> mejorMov = {-1, -1};
     std::pair<int,int> vacio;
 
@@ -289,7 +300,7 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
                 mejorValor = valor;
                 mejorMov = movimiento;
             }
-            alfa = std::max(alfa, mejorValor); // Actualizamos alfa
+            alfa = max(alfa, mejorValor); // Actualizamos alfa
             if (alfa >= beta) break;           // Poda Beta: MIN nunca elegiría esta rama
 
         } else {
@@ -297,7 +308,7 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
                 mejorValor = valor;
                 mejorMov = movimiento;
             }
-            beta = std::min(beta, mejorValor); // Actualizamos beta
+            beta = min(beta, mejorValor); // Actualizamos beta
             if (alfa >= beta) break;           // Poda Alfa: MAX nunca elegiría esta rama
         }
     }
@@ -328,7 +339,6 @@ double AgenteEstudiante::heuristicaPrueba(const Tablero& tablero) {
     int n = tablero.getNParaGanar();
     int oponente = (id == 1) ? 2 : 1;
     double score_positivo = 0;
-
     double score_negativo = 0;
 
     for (int f=0; f< tablero.getFilas(); f++ ){
@@ -351,10 +361,44 @@ double AgenteEstudiante::heuristicaPrueba(const Tablero& tablero) {
 
 
 double AgenteEstudiante::heuristica1(const Tablero& tablero) {
-    //A implementar por el estudiante
-return 0;
-}
+    int ganador = tablero.comprobarGanador();
+    if (ganador == id)  return  10000.0;
+    if (ganador == -1)  return  0.0;
+    if (ganador != 0)   return -10000.0;
 
+    int oponente = (id == 1) ? 2 : 1;
+    int n = tablero.getNParaGanar();
+    double score = 0.0;
+
+    // contarCombinaciones ya está en Tablero — úsalo directamente
+    // Líneas de n-1 valen muchísimo, de n-2 bastante, etc.
+    for (int k = n-1; k >= 2; k--) {
+        double peso = std::pow(10.0, k);
+        score += tablero.contarCombinaciones(k, id)       * peso;
+        score -= tablero.contarCombinaciones(k, oponente) * peso * 1.1; // defenderse pesa un 10% más
+    }
+
+    // Penalizar casillas rojas ocupadas por nosotros (nos convierten en del rival)
+    // Bonificar casillas verdes vacías adyacentes (turno extra)
+    int filas = tablero.getFilas();
+    int cols  = tablero.getColumnas();
+    for (int f = 0; f < filas; f++) {
+        for (int c = 0; c < cols; c++) {
+            auto tipo = tablero.getTipoCelda(f, c);
+            int celda = tablero.getCelda(f, c);
+
+            if (tipo == Tablero::TipoCelda::ROJO) {
+                if (celda == id)       score -= 40;  // trampa: se convierte en del rival
+                if (celda == oponente) score += 20;  // rival cayó en trampa
+            }
+            if (tipo == Tablero::TipoCelda::VERDE && celda == 0) {
+                score += 20;  // casilla verde libre: turno extra potencial
+            }
+        }
+    }
+
+    return score;
+}
 double AgenteEstudiante::heuristica2(const Tablero& tablero) {
     //A implementar por el estudiante
 return 0;
