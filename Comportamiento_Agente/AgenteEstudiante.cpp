@@ -129,7 +129,7 @@ AgenteEstudiante::Resultado AgenteEstudiante::Status(const Tablero &tablero, std
 
     while (!sucesores.empty()) {
 
-        cout << "Nodos visitados: " << nodosVisitados << "\tSucesores restantes: " << sucesores.size() << "\n";
+        //cout << "Nodos visitados: " << nodosVisitados << "\tSucesores restantes: " << sucesores.size() << "\n";
 
         auto hijo = sucesores.back();
         sucesores.pop_back();
@@ -269,14 +269,11 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
     /* ============== Empieza a partir de aquí tu implementación  =============== */
 
     auto sucesores = tablero.getSucesores();
+    bool poda = false;
 
     // Caso base: profundidad límite o sin movimientos
-    if (sucesores.empty()) {
-        if (tablero.comprobarGanador() == id)  return  this->MasInfinito ; 
-        if (tablero.comprobarGanador() == -1)  return  0.0;
-        if (tablero.comprobarGanador() != 0)   return this->MenosInfinito ; 
-    }
-    if (profundidad == prof_Max) {
+    // corte por profundidad
+    if (profundidad == prof_Max || sucesores.empty()) {
         return heuristica(tablero);
     }
 
@@ -286,7 +283,7 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
     std::pair<int,int> mejorMov = {-1, -1};
     std::pair<int,int> vacio;
 
-    while (!sucesores.empty()) {
+    while (!sucesores.empty() and !poda) {
 
         auto hijo = sucesores.back();
         sucesores.pop_back();
@@ -296,20 +293,21 @@ double AgenteEstudiante::alfaBeta(const Tablero &tablero, int profundidad, int p
         double valor = alfaBeta(hijo, profundidad + 1, prof_Max, alfa, beta, vacio);
 
         if (esMax) {
-            if (valor > mejorValor) {
+            if (valor > mejorValor and !poda) {
                 mejorValor = valor;
                 mejorMov = movimiento;
             }
-            alfa = max(alfa, mejorValor); // Actualizamos alfa
-            if (alfa >= beta) break;           // Poda Beta: MIN nunca elegiría esta rama
-
+            alfa = max(alfa, valor); // Actualizamos alfa
+            if (alfa >= beta) poda = true;           // Poda Beta: MIN nunca elegiría esta rama
+            
         } else {
-            if (valor < mejorValor) {
+            if (valor < mejorValor and !poda) {
                 mejorValor = valor;
                 mejorMov = movimiento;
             }
-            beta = min(beta, mejorValor); // Actualizamos beta
-            if (alfa >= beta) break;           // Poda Alfa: MAX nunca elegiría esta rama
+            beta = min(beta, valor); // Actualizamos beta
+            if (alfa >= beta) poda = true;           // Poda Alfa: MAX nunca elegiría esta rama
+            
         }
     }
 
@@ -355,52 +353,53 @@ double AgenteEstudiante::heuristicaPrueba(const Tablero& tablero) {
         }
     }
 
-   
     return score_positivo - score_negativo;
 }
 
 
 double AgenteEstudiante::heuristica1(const Tablero& tablero) {
     int ganador = tablero.comprobarGanador();
-    if (ganador == id)  return  10000.0;
+    if (ganador == id)  return  1000000000.0;
     if (ganador == -1)  return  0.0;
-    if (ganador != 0)   return -10000.0;
+    if (ganador != 0)   return -1000000000.0;
 
     int oponente = (id == 1) ? 2 : 1;
     int n = tablero.getNParaGanar();
     double score = 0.0;
+    double valor = 0.0;
 
-    // contarCombinaciones ya está en Tablero — úsalo directamente
-    // Líneas de n-1 valen muchísimo, de n-2 bastante, etc.
+
     for (int k = n-1; k >= 2; k--) {
-        double peso = std::pow(10.0, k);
-        score += tablero.contarCombinaciones(k, id)       * peso;
-        score -= tablero.contarCombinaciones(k, oponente) * peso * 1.1; // defenderse pesa un 10% más
+        valor = k^2; // Las líneas de n-1 valen muchísimo más que las de n-2... 
+        score += tablero.contarCombinaciones(k, id)       * 10*valor;
+        score -= tablero.contarCombinaciones(k, oponente) * 15*valor; // defenderse pesa un 10% más
     }
 
     // Penalizar casillas rojas ocupadas por nosotros (nos convierten en del rival)
     // Bonificar casillas verdes vacías adyacentes (turno extra)
-    int filas = tablero.getFilas();
-    int cols  = tablero.getColumnas();
-    for (int f = 0; f < filas; f++) {
-        for (int c = 0; c < cols; c++) {
-            auto tipo = tablero.getTipoCelda(f, c);
-            int celda = tablero.getCelda(f, c);
-
-            if (tipo == Tablero::TipoCelda::ROJO) {
-                if (celda == id)       score -= 40;  // trampa: se convierte en del rival
-                if (celda == oponente) score += 20;  // rival cayó en trampa
-            }
-            if (tipo == Tablero::TipoCelda::VERDE && celda == 0) {
-                score += 20;  // casilla verde libre: turno extra potencial
-            }
-        }
-    }
-
+    
     return score;
 }
 double AgenteEstudiante::heuristica2(const Tablero& tablero) {
-    //A implementar por el estudiante
-return 0;
+    int ganador = tablero.comprobarGanador();
+    if (ganador == id)  return  1000000000.0;
+    if (ganador == -1)  return  0.0;
+    if (ganador != 0)   return -1000000000.0;
+    
+    int n = tablero.getNParaGanar();
+    double score = 0.0;
+    double valor = 0.0;
+
+    // contarCombinaciones ya está en Tablero — úsalo directamente
+    // Líneas de n-1 valen muchísimo, de n-2 bastante, etc.
+    for (int k = n-1; k >= 2; k--) {
+        valor = k^2; // Las líneas de n-1 valen muchísimo más que las de n-2... 
+        score += tablero.contarCombinaciones(k, id) * 15*valor;
+    }
+
+    // Penalizar casillas rojas ocupadas por nosotros (nos convierten en del rival)
+    // Bonificar casillas verdes vacías adyacentes (turno extra)
+    
+    return score;
 }
 
